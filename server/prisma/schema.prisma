@@ -1,0 +1,282 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ═══ 枚举 ═══
+enum UserRole {
+  user
+  admin
+}
+
+// ═══ 用户 ═══
+model User {
+  id              Int       @id @default(autoincrement())
+  username        String    @unique @db.VarChar(64)
+  password        String    @db.VarChar(255)
+  role            UserRole  @default(user)
+  disciplineMajor String?   @db.VarChar(32)
+  stage           String?   @db.VarChar(32)
+  active          Boolean   @default(true)
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  results         AssessmentResult[]
+  thresholdSubs   ThresholdSubmission[]
+
+  @@map("users")
+}
+
+// ═══ 职业分类 ═══
+model Category {
+  id         Int       @id
+  name       String    @unique @db.VarChar(32)
+  tagline    String    @db.VarChar(128)
+  overview   String    @db.Text
+  positions  Json
+  employers  Json
+  interviews Json
+  openings   Json
+  coverImage String    @default("") @map("cover_image") @db.VarChar(256)
+  heroImage  String    @default("") @map("hero_image") @db.VarChar(256)
+  imageAlt   String    @default("") @map("image_alt") @db.VarChar(128)
+  tone       String    @default("sand") @db.VarChar(16)
+  gallery    Json?
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+  jobs          Job[]
+  weights       AssessmentWeight[]
+  conflictRules ConflictRule[]
+  destinations  Destination[]
+  salaries      Salary[]
+
+  @@map("categories")
+}
+
+model MediaAsset {
+  id   Int    @id @default(autoincrement())
+  src  String @db.VarChar(256)
+  alt  String @db.VarChar(128)
+  kind String @db.VarChar(16)
+
+  @@unique([src, kind])
+  @@index([kind])
+  @@map("media_assets")
+}
+
+// ═══ 岗位 ═══
+model Job {
+  id               Int       @id @default(autoincrement())
+  title            String    @db.VarChar(128)
+  org              String    @db.VarChar(128)
+  region           String    @db.VarChar(32)
+  type             String    @db.VarChar(32)
+  salary           String    @db.VarChar(32)
+  posted           String    @db.VarChar(32) @default("今天")
+  responsibilities Json
+  requirements     Json
+  benefits         Json
+  note             String?   @db.Text
+  detailUrl        String?   @db.VarChar(512)   @map("detail_url")
+  sourceName       String?   @map("source_name") @db.VarChar(128)
+  categoryId       Int?      @map("category_id")
+  category         Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  active           Boolean   @default(true)
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  @@index([type])
+  @@index([region])
+  @@index([active])
+  @@index([categoryId])
+  @@index([type, region])
+  @@map("jobs")
+}
+
+// ═══ 评估题项 ═══
+model AssessmentItem {
+  itemId    String              @id @db.VarChar(4)
+  module    String              @db.Char(1)
+  dimension String?             @db.VarChar(32)
+  textZh    String              @db.Text @map("text_zh")
+  scaleType String              @db.VarChar(16) @map("scale_type")
+  options   Json?
+  sortOrder Int                 @default(0) @map("sort_order")
+  version   Int                 @default(1)
+  weights   AssessmentWeight[]
+
+  @@index([module])
+  @@map("assessment_items")
+}
+
+// ═══ 权重矩阵 ═══
+model AssessmentWeight {
+  id         Int            @id @default(autoincrement())
+  itemId     String         @db.VarChar(4) @map("item_id")
+  categoryId Int            @map("category_id")
+  weight     Int            @db.TinyInt
+  source     String         @default("editorial") @db.VarChar(16)
+  item       AssessmentItem @relation(fields: [itemId], references: [itemId], onDelete: Cascade)
+  category   Category       @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@unique([itemId, categoryId])
+  @@index([itemId])
+  @@index([categoryId])
+  @@map("assessment_weights")
+}
+
+// ═══ 评估结果 ═══
+model AssessmentResult {
+  id        Int       @id @default(autoincrement())
+  userId    Int?      @map("user_id")
+  user      User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  answers   Json
+  result    Json
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@map("assessment_results")
+}
+
+// ═══ 就业去向 ═══
+model Destination {
+  id         String    @id @db.VarChar(16)
+  school     String    @db.VarChar(64)
+  major      String    @db.VarChar(64)
+  org        String    @db.VarChar(128)
+  type       String    @db.VarChar(16)
+  year       String    @db.VarChar(8)
+  location    String    @db.VarChar(32)
+  source      String    @default("") @db.VarChar(128)
+  sourceUrl   String?   @map("source_url") @db.VarChar(512)
+  isSynthetic Boolean   @default(true) @map("is_synthetic")
+  categoryId  Int?      @map("category_id")
+  category    Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  @@index([type])
+  @@index([year])
+  @@index([categoryId])
+  @@map("destinations")
+}
+
+// ═══ 薪资数据 ═══
+model Salary {
+  id         Int       @id @default(autoincrement())
+  org        String    @db.VarChar(128)
+  position   String    @db.VarChar(128)
+  family     String    @db.VarChar(64)
+  salary     Int
+  year       Int
+  n          Int       @default(1)
+  source     String    @db.VarChar(64)
+  sourceUrl  String?   @map("source_url") @db.VarChar(512)
+  categoryId Int?      @map("category_id")
+  category   Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  @@index([family])
+  @@index([year])
+  @@index([categoryId])
+  @@map("salaries")
+}
+
+// ═══ 转型者访谈 ═══
+model Interview {
+  id         Int    @id @default(autoincrement())
+  name       String @db.VarChar(32)
+  from       String @db.VarChar(128)
+  to         String @db.VarChar(128)
+  date       String @db.VarChar(16)
+  quote      String @db.Text
+  categoryId Int?   @map("category_id")
+
+  @@index([categoryId])
+  @@map("interviews")
+}
+
+// ═══ 门槛评估答卷（积累后切真实百分位） ═══
+model ThresholdSubmission {
+  id              Int       @id @default(autoincrement())
+  userId          Int?      @map("user_id")
+  user            User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  clientKey       String?   @map("client_key") @db.VarChar(64)
+  answers         Json
+  result          Json
+  eduScore        Int       @map("edu_score")
+  paperScore      Int       @map("paper_score")
+  grantScore      Int       @map("grant_score")
+  overseasScore   Int       @map("overseas_score")
+  ageScore        Int       @map("age_score")
+  impactScore     Int       @map("impact_score")
+  awardScore      Int       @map("award_score")
+  userScore       Int       @map("user_score")
+  percentile      Int
+  percentileMode  String    @default("illustrative") @map("percentile_mode") @db.VarChar(16)
+  disciplineMajor String    @map("discipline_major") @db.VarChar(32)
+  phdYear         String    @map("phd_year") @db.VarChar(8)
+  age             Int?
+  hasTarget       Boolean   @default(false) @map("has_target")
+  targetTier      String?   @map("target_tier") @db.VarChar(64)
+  includeInNorm   Boolean   @default(true) @map("include_in_norm")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  @@index([includeInNorm])
+  @@index([disciplineMajor])
+  @@index([phdYear])
+  @@index([userScore])
+  @@index([clientKey])
+  @@index([userId])
+  @@map("threshold_submissions")
+}
+
+// ═══ 门槛评估基准配置 ═══
+model Benchmark {
+  id        Int      @id @default(autoincrement())
+  key       String   @unique @db.VarChar(64)
+  data      Json
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("benchmarks")
+}
+
+// ═══ JD 风险检测规则 ═══
+model RiskRule {
+  id                 Int      @id @default(autoincrement())
+  type               String   @db.VarChar(64)
+  level              String   @db.VarChar(8)
+  scoreWeight        Int      @map("score_weight")
+  patterns           Json
+  description        String   @db.Text
+  interviewQuestions Json     @map("interview_questions")
+  active             Boolean  @default(true)
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  @@index([active])
+  @@map("risk_rules")
+}
+
+// ═══ 冲突提示规则 ═══
+model ConflictRule {
+  id         Int      @id @default(autoincrement())
+  field      String   @db.VarChar(8)
+  condition  String   @db.VarChar(64)
+  categoryId Int      @map("category_id")
+  message    String   @db.Text
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@index([categoryId])
+  @@map("conflict_rules")
+}
+
+// ═══ 价值观追问模板 ═══
+model ValuesQuestion {
+  id       Int    @id @default(autoincrement())
+  valueId  String @db.VarChar(4) @map("value_id")
+  question String @db.Text
+
+  @@index([valueId])
+  @@map("values_questions")
+}

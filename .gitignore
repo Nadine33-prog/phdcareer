@@ -1,0 +1,27 @@
+# 依赖和构建产物
+node_modules
+server/node_modules
+dist
+server/dist
+server/dist-server
+*.zip
+
+# 本机密钥，不要提交
+.env
+server/.env
+server/.env.production
+
+# 日志和系统文件
+*.log
+.DS_Store
+Thumbs.db
+
+# 本地备份和压缩包
+_archive
+_backup_ui_*
+*.tar.gz
+
+# 编辑器 / 助手目录
+.cursor/
+.claude/
+.vscode/
